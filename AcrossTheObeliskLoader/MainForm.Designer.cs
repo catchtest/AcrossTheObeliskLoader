@@ -83,6 +83,7 @@
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Padding = new System.Windows.Forms.Padding(1, 0, 16, 0);
             this.statusStrip1.Size = new System.Drawing.Size(452, 22);
+            this.statusStrip1.SizingGrip = false;
             this.statusStrip1.TabIndex = 5;
             this.statusStrip1.Text = "statusStrip1";
             // 
@@ -155,7 +156,7 @@
             this.lstSaveFiles.Name = "lstSaveFiles";
             this.lstSaveFiles.Size = new System.Drawing.Size(209, 189);
             this.lstSaveFiles.TabIndex = 7;
-            this.lstSaveFiles.DoubleClick += new System.EventHandler(this.lstSaveFolder_DoubleClick);
+            this.lstSaveFiles.DoubleClick += new System.EventHandler(this.lstSaveFiles_DoubleClick);
             // 
             // groupBox1
             // 
@@ -218,6 +219,7 @@
             this.label3.Size = new System.Drawing.Size(94, 31);
             this.label3.TabIndex = 11;
             this.label3.Text = "Loader";
+            this.label3.Click += new System.EventHandler(this.picLogo_Click);
             // 
             // lnkGitHub
             // 
@@ -235,6 +237,7 @@
             // 
             this.cboSaveType.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.cboSaveType.DisplayMember = "Item1";
             this.cboSaveType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cboSaveType.FormattingEnabled = true;
             this.cboSaveType.Location = new System.Drawing.Point(11, 222);
@@ -242,6 +245,8 @@
             this.cboSaveType.Name = "cboSaveType";
             this.cboSaveType.Size = new System.Drawing.Size(208, 24);
             this.cboSaveType.TabIndex = 0;
+            this.cboSaveType.ValueMember = "Item2";
+            this.cboSaveType.DropDown += new System.EventHandler(this.cboSaveType_DropDown);
             this.cboSaveType.SelectedIndexChanged += new System.EventHandler(this.cboSaveTypes_SelectedIndexChanged);
             // 
             // MainForm

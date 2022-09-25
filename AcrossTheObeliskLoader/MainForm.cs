@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -124,7 +125,7 @@ namespace AcrossTheObeliskLoader
 
         private void btnBackup_Click(object sender, EventArgs e)
         {
-            var saveFilePrefix = cboSaveType.SelectedItem as string;
+            string saveFilePrefix = GetSaveFilePrefix();
             if (string.IsNullOrEmpty(saveFilePrefix)) { return; }
 
             var saveFilePath = Path.Combine(PlayerPath, saveFilePrefix + ".ato");
@@ -139,12 +140,20 @@ namespace AcrossTheObeliskLoader
             var destFilePath = Path.Combine(PlayerPath, $"{saveFilePrefix}_{date:yyyyMMdd_HHmmss}.ato");
 
             // if file exist, don't copy again
-            if (File.Exists(destFilePath)) { return; }
+            if (File.Exists(destFilePath)) {
+                ShowInfo("Save file has already backup.");
+                return;
+            }
             File.Copy(saveFilePath, destFilePath);
 
             ShowInfo("Save backup.");
             System.Media.SystemSounds.Beep.Play();
             LoadSaveFilesByType();
+        }
+
+        private string GetSaveFilePrefix()
+        {
+            return ((Tuple<string, string>)cboSaveType.SelectedItem)?.Item2;
         }
 
         private void ShowInfo(string message)
@@ -161,10 +170,10 @@ namespace AcrossTheObeliskLoader
 
         private void btnLoad_Click(object sender, EventArgs e)
         {
-            var saveFilePrefix = cboSaveType.SelectedItem as string;
+            var saveFilePrefix = GetSaveFilePrefix();
             if (string.IsNullOrEmpty(saveFilePrefix)) { return; }
 
-            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "_*");
+            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "_*_*.ato");
             saveFiles = saveFiles.Where(x => x.EndsWith(".ato")).ToArray();
             if (saveFiles.Length == 0) {
                 ShowInfo("There are no save here.");
@@ -172,6 +181,7 @@ namespace AcrossTheObeliskLoader
             }
 
             // Get last save
+            // Don't use 'gamedata_0_turn.ato'
             var lastSave = saveFiles.OrderByDescending(x => x).First();
             var originSave = Path.Combine(PlayerPath, saveFilePrefix + ".ato");
             if (File.Exists(originSave))
@@ -240,25 +250,30 @@ namespace AcrossTheObeliskLoader
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            var saveFilePrefix = cboSaveType.SelectedItem as string;
+            var saveFilePrefix = GetSaveFilePrefix();
             if (string.IsNullOrEmpty(saveFilePrefix)) { return; }
 
-            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "_*.ato");
-
-            if (saveFiles.Length <= 1)
+            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "_*_*.ato");
+            var count = saveFiles.Length - 1;
+            if (count == 0)
             {
                 ShowInfo("No other save exists.");
                 LoadSaveFilesByType();
                 return;
             }
+            if (MessageBox.Show($"Are you sure to delete {count} files?", "Confirm", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return;
+            }
 
+            // Don't delete 'gamedata_0_turn.ato'
             var deleteFiles = saveFiles.OrderByDescending(x => x).Skip(1);
             foreach (var file in deleteFiles)
             {
                 File.Delete(file);
             }
 
-            ShowInfo($"Delete {deleteFiles.Count()} file(s) successfully.");
+            ShowInfo($"Delete {count} file(s) successfully.");
             LoadSaveFilesByType();
         }
 
@@ -296,31 +311,64 @@ namespace AcrossTheObeliskLoader
 
             var files = Directory.GetFiles(PlayerPath, "gamedata_*.ato");
             var saveFiles = files
-                .Where(x => Regex.IsMatch(Path.GetFileName(x), "gamedata_\\d\\.ato"))
-                .Select(x => Path.GetFileNameWithoutExtension(x)).ToArray();
+                .Where(x => Regex.IsMatch(Path.GetFileName(x), "gamedata_\\d{1,2}\\.ato"))
+                .Select(x =>
+                {
+                    var value = Path.GetFileNameWithoutExtension(x);
+                    string name;
+                    var num = int.Parse(Regex.Match(value, "gamedata_(\\d{1,2})").Groups[1].Value);
+                    if (num < 12)
+                    {
+                        name = "Adventure Slot " + (num + 1);
+                    }
+                    else if (num < 24)
+                    {
+                        name = "Obelisk Slot " + (num - 12 + 1);
+                    }
+                    else
+                    {
+                        name = "Weekly Slot " + (num - 24 + 1);
+                    }
+                    return Tuple.Create(name, value);
+                }).ToArray();
 
             cboSaveType.Items.Clear();
             cboSaveType.Items.AddRange(saveFiles);
+            lstSaveFiles.Items.Clear();
         }
 
         private void LoadSaveFilesByType()
         {
-            var saveFilePrefix = cboSaveType.SelectedItem as string;
+            var saveFilePrefix = GetSaveFilePrefix();
             if (string.IsNullOrEmpty(saveFilePrefix)) { return; }
 
-            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "*");
-            saveFiles = saveFiles.Where(x => x.EndsWith(".ato")).Select(x => Path.GetFileName(x)).ToArray();
+            var saveFiles = Directory.GetFiles(PlayerPath, saveFilePrefix + "_*_*.ato");
+            saveFiles = saveFiles.Select(x => {
+                var input = Path.GetFileNameWithoutExtension(x);
+                var match = Regex.Match(input, "gamedata_\\d{1,2}_(\\d{8}_\\d{6})");
+                var dt = DateTime.ParseExact(match.Groups[1].Value, "yyyyMMdd_HHmmss", new CultureInfo("zh-TW"));
+                return dt.ToString("yyyy/MM/dd HH:mm:ss");
+            }).ToArray();
 
             lstSaveFiles.Items.Clear();
             lstSaveFiles.Items.AddRange(saveFiles);
         }
 
-        private void lstSaveFolder_DoubleClick(object sender, EventArgs e)
+        private void lstSaveFiles_DoubleClick(object sender, EventArgs e)
         {
-            var folder = lstSaveFiles.SelectedItem?.ToString();
-            if (!string.IsNullOrEmpty(folder))
+            var fileName = lstSaveFiles.SelectedItem?.ToString();
+            if (!string.IsNullOrEmpty(fileName))
             {
-                Process.Start(Path.Combine(PlayerPath, folder));
+                var filePath = Path.Combine(PlayerPath, fileName);
+                if (File.Exists(filePath))
+                {
+                    var argument = "/select, \"" + filePath +"\"";
+                    Process.Start("explorer.exe", argument);
+                }
+                else
+                {
+                    LoadSaveFilesByType();
+                }
             }
         }
 
@@ -342,6 +390,22 @@ namespace AcrossTheObeliskLoader
         private void picLogo_Click(object sender, EventArgs e)
         {
             Process.Start("https://store.steampowered.com/app/1385380/Across_the_Obelisk/");
+        }
+
+        private void cboSaveType_DropDown(object sender, EventArgs e)
+        {
+            if (cboSaveType.Items.Count == 0)
+            {
+                LoadSaveTypes();
+                return;
+            }
+            // If save file not exists, reload file list.
+            var saveFilePrefix = GetSaveFilePrefix();
+            if (!string.IsNullOrEmpty(saveFilePrefix) && !File.Exists(Path.Combine(PlayerPath, saveFilePrefix + ".ato")))
+            {
+                LoadSaveTypes();
+                return;
+            }
         }
     }
 }
